@@ -29,7 +29,7 @@
   #done .note { margin:0 0 12px; line-height:1.5; }
   #done .thanks { font-size:18px; color:var(--fg); margin:6px 0 16px; }
   #done .msg { font-size:16px; color:var(--fg); word-break:break-word; }
-  #done .btn { margin-top:26px; }
+  #done .small { font-size:14px; margin-top:22px; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -54,7 +54,7 @@
     <h1>Оплата прошла успешно</h1>
     <p class="note thanks">Спасибо!</p>
     <p class="note msg">Доступы придут на почту <b id="doneMail"></b>,<br>а также в течение 10 минут — в бот.</p>
-    <a class="btn" id="toBot" href="#">Вернуться в бот</a>
+    <p class="note small">Эту страницу можно закрыть.</p>
   </div>
 
   <!-- Ошибка: нет почты в ссылке -->
@@ -110,9 +110,6 @@ if (!validEmail) {
 function showDone() {
   $('done').hidden = false;
   $('doneMail').textContent = email;
-  // Кнопка ведёт в команду бота, которая через 5 минут проверяет оплату и выдаёт доступ
-  var target = /^https?:\/\//.test(PAID_URL) ? PAID_URL : botUrl;
-  if (target) $('toBot').href = target; else $('toBot').hidden = true;
   // Сразу просим скрипт проверить оплату, чтобы она быстрее появилась в таблице
   api({ api: 'check', email: email }).then(function () {}, function () {});
 }
