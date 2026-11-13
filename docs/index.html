@@ -48,8 +48,8 @@
   <div id="done" class="center" hidden>
     <div class="check">✓</div>
     <h1>Оплата прошла успешно</h1>
-    <p class="note" id="doneNote">Возвращаем вас в бот…</p>
-    <a class="btn" id="toBot" href="#">Вернуться в бот</a>
+    <p class="note">Спасибо! Доступы придут на почту <b id="doneMail"></b> и в течение 10 минут — в бот.</p>
+    <p class="note">Эту страницу можно закрыть.</p>
   </div>
 
   <!-- Ошибка: нет почты в ссылке -->
@@ -102,14 +102,9 @@ if (!validEmail) {
 // ---------- после оплаты: отмечаем оплату в таблице и возвращаем в бот
 function showDone() {
   $('done').hidden = false;
-  var target = /^https?:\/\//.test(PAID_URL) ? PAID_URL : botUrl;
-  var a = $('toBot');
-  if (target) a.href = target; else a.hidden = true;
-  if (!target) $('doneNote').textContent = 'Можно вернуться в Telegram.';
-  var back = function () { if (target) location.href = target; };
-  // Ждём проверку не дольше 6 секунд, чтобы бот уже видел оплату
-  var timer = setTimeout(back, 6000);
-  api({ api: 'check', email: email }).then(function () { clearTimeout(timer); back(); }, function () { clearTimeout(timer); back(); });
+  $('doneMail').textContent = email;
+  // Сразу просим скрипт проверить оплату, чтобы она быстрее появилась в таблице
+  api({ api: 'check', email: email }).then(function () {}, function () {});
 }
 
 // ---------- форма выбора
