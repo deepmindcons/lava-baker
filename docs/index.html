@@ -26,6 +26,10 @@
   .center { text-align:center; padding-top:40px; }
   .check { width:72px; height:72px; border-radius:50%; border:3px solid var(--ok); color:var(--ok); font-size:38px; line-height:66px; margin:0 auto 18px; }
   .note { color:var(--muted); font-size:15px; margin:14px 0 26px; }
+  #done .note { margin:0 0 12px; line-height:1.5; }
+  #done .thanks { font-size:18px; color:var(--fg); margin:6px 0 16px; }
+  #done .msg { font-size:16px; color:var(--fg); word-break:break-word; }
+  #done .small { font-size:14px; margin-top:22px; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -48,8 +52,9 @@
   <div id="done" class="center" hidden>
     <div class="check">✓</div>
     <h1>Оплата прошла успешно</h1>
-    <p class="note">Спасибо! Доступы придут на почту <b id="doneMail"></b> и в течение 10 минут — в бот.</p>
-    <p class="note">Эту страницу можно закрыть.</p>
+    <p class="note thanks">Спасибо!</p>
+    <p class="note msg">Доступы придут на почту <b id="doneMail"></b>,<br>а также в течение 10 минут — в бот.</p>
+    <p class="note small">Эту страницу можно закрыть.</p>
   </div>
 
   <!-- Ошибка: нет почты в ссылке -->
