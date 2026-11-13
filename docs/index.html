@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Оплата</title>
+<style>
+  :root { --fg:#111; --muted:#666; --line:#ddd; --bg:#fff; --err-bg:#fdecec; --err:#a11; --ok:#2a9d74; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+  .box { max-width:420px; margin:0 auto; padding:32px 16px 40px; }
+  h1 { font-size:22px; margin:0 0 6px; }
+  .mail { color:var(--muted); font-size:15px; margin:0 0 24px; word-break:break-all; }
+  .lbl { font-size:15px; color:#444; margin:0 0 8px; }
+  .opts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:22px; min-height:54px; }
+  .opt { flex:1; min-width:90px; }
+  .opt input { position:absolute; opacity:0; pointer-events:none; }
+  .opt span { display:block; text-align:center; padding:14px 8px; border:1.5px solid var(--line); border-radius:12px; font-size:17px; cursor:pointer; }
+  .opt input:checked + span { border-color:var(--fg); background:var(--fg); color:#fff; }
+  .skel { flex:1; height:54px; border-radius:12px; background:#f2f2f2; }
+  input[type=text] { width:100%; padding:14px; border:1.5px solid var(--line); border-radius:12px; font-size:17px; text-transform:uppercase; margin-bottom:22px; }
+  button, .btn { display:block; width:100%; padding:16px; border:0; border-radius:14px; background:var(--fg); color:#fff; font-size:18px; cursor:pointer; text-align:center; text-decoration:none; }
+  button:disabled { opacity:.6; cursor:default; }
+  .err { background:var(--err-bg); color:var(--err); padding:12px; border-radius:10px; margin-bottom:18px; font-size:15px; }
+  .center { text-align:center; padding-top:40px; }
+  .check { width:72px; height:72px; border-radius:50%; border:3px solid var(--ok); color:var(--ok); font-size:38px; line-height:66px; margin:0 auto 18px; }
+  .note { color:var(--muted); font-size:15px; margin:14px 0 26px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="box">
+
+  <!-- Выбор валюты и промокода -->
+  <form id="pay" hidden>
+    <h1>Оплата</h1>
+    <p class="mail" id="mail"></p>
+    <div class="err" id="err" hidden></div>
+    <p class="lbl">Валюта</p>
+    <div class="opts" id="opts"><div class="skel"></div><div class="skel"></div></div>
+    <p class="lbl">Промокод (если есть)</p>
+    <input type="text" id="promo" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <button type="submit" id="go">Перейти к оплате</button>
+  </form>
+
+  <!-- После успешной оплаты -->
+  <div id="done" class="center" hidden>
+    <div class="check">✓</div>
+    <h1>Оплата прошла успешно</h1>
+    <p class="note" id="doneNote">Возвращаем вас в бот…</p>
+    <a class="btn" id="toBot" href="#">Вернуться в бот</a>
+  </div>
+
+  <!-- Ошибка: нет почты в ссылке -->
+  <div id="bad" class="center" hidden>
+    <h1>Не удалось определить почту</h1>
+    <p class="note">Вернитесь в бот и введите почту ещё раз.</p>
+    <a class="btn botLink" href="#">Вернуться в бот</a>
+  </div>
+</div>
+
+<script>
+// ===== Настройки: впишите свои значения =====
+// Адрес веб-приложения Apps Script (…/exec)
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwQQkjdvZejB8kAPMtp6ealfiYciTFmaAYALwJ3fENSw2Fwpk9JJbdfvq8UAqjMIIZKgg/exec';
+// Ссылка на бота (для кнопки «Вернуться в бот» при ошибке)
+var BOT_URL = 'https://t.me/deepmindco_bot';
+// Ссылка на команду бота, которая проверяет оплату и выдаёт доступ
+var PAID_URL = 'https://t.me/deepmindco_bot?start=link_RG6MJ6vWOv';
+// Цена по умолчанию: пусто — берётся DEFAULT_OFFER_ID из скрипта
+var DEFAULT_OFFER = '';
+// ============================================
+
+var q = new URLSearchParams(location.search);
+var email = (q.get('email') || '').replace(/ /g, '+').trim().toLowerCase();
+var uid = q.get('uid') || '';
+var offer = q.get('offer') || DEFAULT_OFFER;
+var wantCur = (q.get('cur') || 'RUB').toUpperCase();
+var SIGNS = { RUB: '₽', USD: '$', EUR: '€' };
+var botUrl = /^https?:\/\//.test(BOT_URL) ? BOT_URL : '';
+
+function $(id) { return document.getElementById(id); }
+function api(params) {
+  var u = SCRIPT_URL + '?' + new URLSearchParams(params).toString();
+  return fetch(u, { redirect: 'follow' }).then(function (r) { return r.json(); });
+}
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+document.querySelectorAll('.botLink').forEach(function (a) { if (botUrl) a.href = botUrl; else a.hidden = true; });
+
+var validEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && email.indexOf('{{') < 0;
+
+if (!validEmail) {
+  $('bad').hidden = false;
+} else if (q.get('done')) {
+  showDone();
+} else {
+  showForm(q.get('failed') ? 'Оплата не прошла. Попробуйте ещё раз или выберите другую валюту.' : '');
+}
+
+// ---------- после оплаты: отмечаем оплату в таблице и возвращаем в бот
+function showDone() {
+  $('done').hidden = false;
+  var target = /^https?:\/\//.test(PAID_URL) ? PAID_URL : botUrl;
+  var a = $('toBot');
+  if (target) a.href = target; else a.hidden = true;
+  if (!target) $('doneNote').textContent = 'Можно вернуться в Telegram.';
+  var back = function () { if (target) location.href = target; };
+  // Ждём проверку не дольше 6 секунд, чтобы бот уже видел оплату
+  var timer = setTimeout(back, 6000);
+  api({ api: 'check', email: email }).then(function () { clearTimeout(timer); back(); }, function () { clearTimeout(timer); back(); });
+}
+
+// ---------- форма выбора
+function showForm(error) {
+  $('pay').hidden = false;
+  $('mail').textContent = 'Почта: ' + email;
+  setError(error);
+  var cached = store('prices_' + offer);
+  if (cached) { try { renderPrices(JSON.parse(cached)); } catch (e) {} }
+  api({ api: 'prices', offer: offer }).then(function (d) {
+    if (d && d.ok && d.prices && d.prices.length) {
+      store('prices_' + offer, JSON.stringify(d.prices));
+      renderPrices(d.prices);
+    } else if (!cached) {
+      renderPrices([{ currency: 'RUB' }]);
+    }
+  }, function () { if (!cached) renderPrices([{ currency: 'RUB' }]); });
+
+  $('pay').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var cur = (document.querySelector('input[name=cur]:checked') || {}).value || 'RUB';
+    var promo = $('promo').value.trim().toUpperCase();
+    setError('');
+    $('go').disabled = true;
+    $('go').textContent = 'Создаём оплату…';
+    api({ api: 'invoice', uid: uid, email: email, offer: offer, cur: cur, promo: promo }).then(function (d) {
+      if (d && d.ok && d.paymentUrl) { location.href = d.paymentUrl; return; }
+      fail((d && d.message) || 'Не получилось создать оплату. Попробуйте ещё раз.');
+    }, function () { fail('Нет связи. Проверьте интернет и попробуйте ещё раз.'); });
+  });
+}
+
+function renderPrices(prices) {
+  var checked = (document.querySelector('input[name=cur]:checked') || {}).value || wantCur;
+  if (!prices.some(function (p) { return p.currency === checked; })) checked = prices[0].currency;
+  var box = $('opts');
+  box.innerHTML = '';
+  prices.forEach(function (p) {
+    var label = document.createElement('label');
+    label.className = 'opt';
+    var input = document.createElement('input');
+    input.type = 'radio'; input.name = 'cur'; input.value = p.currency; input.checked = p.currency === checked;
+    var span = document.createElement('span');
+    var sum = p.amount != null && p.amount !== '' ? Number(p.amount).toLocaleString('ru-RU') + ' ' : '';
+    span.textContent = sum + (SIGNS[p.currency] || p.currency);
+    label.appendChild(input); label.appendChild(span); box.appendChild(label);
+  });
+}
+
+function setError(text) { $('err').textContent = text; $('err').hidden = !text; }
+function fail(text) {
+  setError(text);
+  $('go').disabled = false;
+  $('go').textContent = 'Перейти к оплате';
+}
+</script>
+</body>
+</html>
