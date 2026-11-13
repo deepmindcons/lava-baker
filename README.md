@@ -15,9 +15,9 @@
 
 | Тариф | Ссылка |
 |---|---|
-| 1750 ₽ | `https://deepmindcons.github.io/lava-baker/?uid={{USERNAME_TEXT}}&email={{email_baker}}&offer=7a7b5e0b-f5d3-404b-9692-c15b1eaa244b` |
-| 2750 ₽ | `https://deepmindcons.github.io/lava-baker/?uid={{USERNAME_TEXT}}&email={{email_baker}}&offer=d8a6b75e-2c4d-4cbf-b013-c69dcd4de923` |
-| 3750 ₽ | `https://deepmindcons.github.io/lava-baker/?uid={{USERNAME_TEXT}}&email={{email_baker}}&offer=b39309a1-7ddc-4a6d-a06d-fe398a2d18d5` |
+| 1750 ₽ | `https://deepmindcons.github.io/lava-baker/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_baker}}&offer=7a7b5e0b-f5d3-404b-9692-c15b1eaa244b` |
+| 2750 ₽ | `https://deepmindcons.github.io/lava-baker/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_baker}}&offer=d8a6b75e-2c4d-4cbf-b013-c69dcd4de923` |
+| 3750 ₽ | `https://deepmindcons.github.io/lava-baker/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_baker}}&offer=b39309a1-7ddc-4a6d-a06d-fe398a2d18d5` |
 
 Проверка оплаты из бота (ответ `paid` / `unpaid`):
 
