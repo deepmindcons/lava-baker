@@ -32,6 +32,13 @@ const BOT_URL = 'https://t.me/deepmindco_bot';
 // 6. Команда бота, которая проверяет оплату и выдаёт доступ (сюда человек попадает после оплаты)
 const PAID_URL = 'https://t.me/deepmindco_bot?start=link_RG6MJ6vWOv';
 
+// 7. Автовыдача доступа: как только оплата найдена, скрипт сам запускает команду в боте этому человеку.
+//    Токен: PuzzleBot → Бот → Настройки → Интеграции → Входящие запросы → «Сгенерировать API токен».
+//    Не публикуйте токен (в GitHub он не должен попасть). Пока здесь заглушка — автовыдача выключена.
+const PUZZLEBOT_TOKEN = 'ВСТАВЬТЕ_СЮДА_API_ТОКЕН_PUZZLEBOT';
+//    Точное название команды в PuzzleBot, которая выдаёт доступ (и ставит категорию «доступ получен»).
+const ACCESS_COMMAND = 'ВСТАВЬТЕ_СЮДА_НАЗВАНИЕ_КОМАНДЫ';
+
 // Листы таблицы
 const REG_SHEET = 'PuzzleBot';   // A — имя, B — тег, C — почта, D — доступ (заполняет бот), E — оплата (заполняет скрипт)
 const LAVA_SHEET = 'Lava.top';
@@ -50,7 +57,9 @@ const REFUNDED = 'Возврат';
 // номера колонок листа «Lava.top»
 const L_STATUS = 5, L_TG = 6, L_ID = 7;
 
-const PAY_HEADER = ['Создан', 'Telegram ID', 'Почта', 'Оффер', 'Сумма', 'Валюта', 'ID счёта', 'Статус', 'Ссылка на оплату', 'Промокод'];
+const PAY_HEADER = ['Создан', 'Telegram ID', 'Почта', 'Оффер', 'Сумма', 'Валюта', 'ID счёта', 'Статус', 'Ссылка на оплату', 'Промокод',
+                    'Telegram ID (число)', 'Команда в боте'];
+const P_TID = 11, P_SENT = 12;   // номера колонок листа «Счета»
 
 
 // ---------------------------------------------------------------- меню
@@ -61,6 +70,7 @@ function onOpen() {
     .addItem('Показать продукты и цены Lava', 'showOffers')
     .addItem('Проверить оплаты сейчас', 'checkNow')
     .addItem('Создать тестовый счёт', 'testInvoice')
+    .addItem('Проверить автовыдачу доступа в боте', 'testBotCommand')
     .addToUi();
 }
 
@@ -83,6 +93,7 @@ function tick() {
     paid = syncInvoices();
   } finally {
     updatePayColumn();
+    deliverAccess();
   }
   return paid;
 }
@@ -101,6 +112,7 @@ function doPost(e) {
   try {
     result = handle(e);
     if (result.status === 'saved' || result.status === 'refunded') updatePayColumn();
+    if (result.status === 'saved') deliverAccess();
   } catch (err) {
     result = { status: 'error', error: String(err) };
   }
@@ -141,11 +153,13 @@ function api(p) {
   if (p.api === 'check') {
     if (!validEmail) return { ok: false, error: 'email', bot: BOT_URL, paidUrl: PAID_URL };
     const found = syncInvoices(email);
-    if (found) updatePayColumn();
+    if (found) { updatePayColumn(); deliverAccess(); }
     return { ok: true, paid: hasPaidInvoice(email), bot: BOT_URL, paidUrl: PAID_URL };
   }
   if (p.api === 'invoice') {
     const uid = String(p.uid || '').trim();
+    // Числовой Telegram ID из бота — по нему скрипт после оплаты запускает команду выдачи доступа
+    const tid = /^\d{3,15}$/.test(String(p.tid || '').trim()) ? String(p.tid).trim() : '';
     const currency = String(p.cur || 'RUB').trim().toUpperCase();
     const promo = String(p.promo || '').trim().toUpperCase();
     if (!validEmail) return { ok: false, error: 'email', message: 'Не удалось определить вашу почту. Вернитесь в бот и введите почту ещё раз.' };
@@ -153,7 +167,7 @@ function api(p) {
       return { ok: false, error: 'promo', message: 'Промокод может состоять только из латинских букв, цифр, «-» и «_».' };
     }
     try {
-      const inv = getOrCreateInvoice(email, uid, offerId, currency, promo);
+      const inv = getOrCreateInvoice(email, uid, offerId, currency, promo, tid);
       writeLog(null, 'PAY', { status: 'redirect', email: email, uid: uid, promo: promo, invoice: inv.id });
       return { ok: true, paymentUrl: inv.paymentUrl };
     } catch (err) {
@@ -196,8 +210,9 @@ function returnUrls(email, uid, offerId) {
 }
 
 /** Счёт для человека: повторно использует неоплаченный счёт за последние 12 часов. */
-function getOrCreateInvoice(email, uid, offerId, currency, promo) {
+function getOrCreateInvoice(email, uid, offerId, currency, promo, tid) {
   promo = promo || '';
+  tid = tid || '';
   if (!offerId || offerId.indexOf('ВСТАВЬТЕ') === 0) {
     throw new Error('Не указан DEFAULT_OFFER_ID вверху скрипта.');
   }
@@ -213,6 +228,7 @@ function getOrCreateInvoice(email, uid, offerId, currency, promo) {
         const fresh = (Date.now() - new Date(r[0]).getTime()) < 12 * 3600 * 1000;
         if (fresh && r[2] === email && String(r[1]) === uid && r[3] === offerId && r[5] === currency &&
             r[7] === 'ожидает оплаты' && r[8] && String(r[9] || '') === promo) {
+          if (tid && !r[P_TID - 1]) sheet.getRange(i + 2, P_TID).setValue("'" + tid);
           return { id: r[6], paymentUrl: r[8] };
         }
       }
@@ -240,7 +256,7 @@ function getOrCreateInvoice(email, uid, offerId, currency, promo) {
     if (!data.paymentUrl) throw new Error('Lava не вернула ссылку на оплату: ' + text.slice(0, 300));
     const money = data.amountTotal || {};
     sheet.appendRow([new Date(), uid, email, offerId, Number(money.amount) || '', String(money.currency || currency),
-                     data.id, 'ожидает оплаты', data.paymentUrl, promo]);
+                     data.id, 'ожидает оплаты', data.paymentUrl, promo, tid ? "'" + tid : '', '']);
     return { id: data.id, paymentUrl: data.paymentUrl };
   } finally {
     lock.releaseLock();
@@ -312,6 +328,84 @@ function syncInvoices(onlyEmail) {
     writeLog(null, 'INVOICES', { status: 'checked', paid: paid.length, errors: errors });
   }
   return paid.length;
+}
+
+
+// ---------------------------------------------------------------- автовыдача доступа через PuzzleBot
+
+/**
+ * Для каждого оплаченного счёта с числовым Telegram ID, по которому ещё не запускали выдачу,
+ * вызывает в PuzzleBot команду ACCESS_COMMAND этому человеку (метод API sendCommand).
+ * Результат пишется в колонку «Команда в боте» листа «Счета». При ошибке — до 3 попыток
+ * (раз в 5 минут). Если что-то не сработает, остаются проверки по таймерам в самом боте.
+ */
+function deliverAccess() {
+  if (PUZZLEBOT_TOKEN.indexOf('ВСТАВЬТЕ') === 0 || ACCESS_COMMAND.indexOf('ВСТАВЬТЕ') === 0) return 0;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return 0;
+  let sent = 0;
+  try {
+    const sheet = paySheet();
+    const last = sheet.getLastRow();
+    if (last < 2) return 0;
+    const rows = sheet.getRange(2, 1, last - 1, PAY_HEADER.length).getValues();
+    const done = {};   // одному человеку — одна команда, даже если оплаченных счетов несколько
+    rows.forEach(function (r) {
+      if (String(r[P_SENT - 1]).indexOf('отправлено') === 0) done[String(r[P_TID - 1])] = true;
+    });
+    rows.forEach(function (r, i) {
+      const tid = String(r[P_TID - 1] || '').replace(/^'/, '');
+      const mark = String(r[P_SENT - 1] || '');
+      if (r[7] !== 'оплачен' || !/^\d+$/.test(tid) || mark.indexOf('отправлено') === 0) return;
+      const tries = (mark.match(/^ошибка (\d)/) || [])[1] | 0;
+      if (tries >= 3) return;
+      if (done[tid]) {
+        sheet.getRange(i + 2, P_SENT).setValue('отправлено ранее');
+        return;
+      }
+      const res = puzzleSendCommand(tid);
+      if (res.ok) {
+        sheet.getRange(i + 2, P_SENT).setValue('отправлено ' +
+          Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM HH:mm'));
+        done[tid] = true;
+        sent++;
+      } else {
+        sheet.getRange(i + 2, P_SENT).setValue('ошибка ' + (tries + 1) + '/3: ' + res.error);
+      }
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  if (sent) writeLog(null, 'BOT', { status: 'access_sent', count: sent });
+  return sent;
+}
+
+function puzzleSendCommand(tid) {
+  const url = 'https://api.puzzlebot.top/?token=' + encodeURIComponent(PUZZLEBOT_TOKEN) +
+    '&method=sendCommand&command_name=' + encodeURIComponent(ACCESS_COMMAND) +
+    '&platform_chat_id=' + encodeURIComponent(tid) + '&platform=tg';
+  try {
+    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const text = res.getContentText();
+    let data = {};
+    try { data = JSON.parse(text); } catch (e) { /* не JSON */ }
+    if (res.getResponseCode() === 200 && Number(data.code) === 0) return { ok: true };
+    return { ok: false, error: String(data.description || text).slice(0, 150) };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err).slice(0, 150) };
+  }
+}
+
+/** Меню: проверить связь с PuzzleBot — отправить команду выдачи доступа на ваш Telegram ID. */
+function testBotCommand() {
+  const ui = SpreadsheetApp.getUi();
+  const ans = ui.prompt('Проверка автовыдачи', 'Ваш числовой Telegram ID (команда «' + ACCESS_COMMAND + '» придёт вам в бот):',
+    ui.ButtonSet.OK_CANCEL);
+  if (ans.getSelectedButton() !== ui.Button.OK) return;
+  const tid = ans.getResponseText().trim();
+  if (!/^\d+$/.test(tid)) { ui.alert('Нужен числовой ID, только цифры.'); return; }
+  const res = puzzleSendCommand(tid);
+  ui.alert(res.ok ? 'Готово: команда отправлена, проверьте бота.' : 'Не получилось: ' + res.error);
 }
 
 
@@ -398,8 +492,21 @@ function savePayment(p) {
   if (contractId && sheet.getRange(1, L_ID, sheet.getMaxRows(), 1).createTextFinder(contractId).matchEntireCell(true).findNext()) {
     return { status: 'duplicate' };
   }
+  // Если это оплата счёта из бота — отметим счёт оплаченным и подпишем Telegram
+  let tg = '';
+  const pay = paySheet();
+  if (contractId && pay.getLastRow() > 1) {
+    const rows = pay.getRange(2, 1, pay.getLastRow() - 1, PAY_HEADER.length).getValues();
+    for (let i = 0; i < rows.length; i++) {
+      if (String(rows[i][6]) === contractId) {
+        tg = rows[i][1];
+        pay.getRange(i + 2, 8).setValue('оплачен');
+        break;
+      }
+    }
+  }
   sheet.appendRow([
-    new Date(), email, Number(p.amount) || p.amount || '', String(p.currency || '').toUpperCase(), PAID, '', contractId,
+    new Date(), email, Number(p.amount) || p.amount || '', String(p.currency || '').toUpperCase(), PAID, tg, contractId,
   ]);
   return { status: 'saved', email: email };
 }
@@ -551,6 +658,9 @@ function paySheet() {
     sheet.appendRow(PAY_HEADER);
     sheet.setFrozenRows(1);
     sheet.getRange('1:1').setFontWeight('bold');
+  } else if (sheet.getRange(1, PAY_HEADER.length).getValue() !== PAY_HEADER[PAY_HEADER.length - 1]) {
+    // Лист создан прошлой версией скрипта — дописываем новые колонки в шапку
+    sheet.getRange(1, 1, 1, PAY_HEADER.length).setValues([PAY_HEADER]).setFontWeight('bold');
   }
   return sheet;
 }

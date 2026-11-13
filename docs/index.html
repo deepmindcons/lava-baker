@@ -80,6 +80,8 @@ var DEFAULT_OFFER = '';
 var q = new URLSearchParams(location.search);
 var email = (q.get('email') || '').replace(/ /g, '+').trim().toLowerCase();
 var uid = q.get('uid') || '';
+// Числовой Telegram ID (из бота) — по нему скрипт после оплаты сам запускает выдачу доступа
+var tid = (q.get('tid') || '').trim();
 var offer = q.get('offer') || DEFAULT_OFFER;
 var wantCur = (q.get('cur') || 'RUB').toUpperCase();
 var SIGNS = { RUB: '₽', USD: '$', EUR: '€' };
@@ -138,7 +140,7 @@ function showForm(error) {
     setError('');
     $('go').disabled = true;
     $('go').textContent = 'Создаём оплату…';
-    api({ api: 'invoice', uid: uid, email: email, offer: offer, cur: cur, promo: promo }).then(function (d) {
+    api({ api: 'invoice', uid: uid, tid: tid, email: email, offer: offer, cur: cur, promo: promo }).then(function (d) {
       if (d && d.ok && d.paymentUrl) { location.href = d.paymentUrl; return; }
       fail((d && d.message) || 'Не получилось создать оплату. Попробуйте ещё раз.');
     }, function () { fail('Нет связи. Проверьте интернет и попробуйте ещё раз.'); });
