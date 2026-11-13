@@ -61,6 +61,7 @@ function onOpen() {
     .addItem('Показать продукты и цены Lava', 'showOffers')
     .addItem('Проверить оплаты сейчас', 'checkNow')
     .addItem('Создать тестовый счёт', 'testInvoice')
+    .addItem('Добавить итоги продаж', 'setupTotals')
     .addToUi();
 }
 
@@ -72,6 +73,7 @@ function install() {
   ScriptApp.newTrigger('tick').timeBased().everyMinutes(5).create();
   paySheet();
   lavaSheet();
+  setupTotals(true);
   tick();
   SpreadsheetApp.getUi().alert('Готово: автопроверка оплат включена (каждые 5 минут).');
 }
@@ -294,7 +296,7 @@ function syncInvoices(onlyEmail) {
           : [];
         const at = ids.indexOf(String(r[6]));
         if (at < 0) {
-          lava.appendRow([
+          appendLava(lava, [
             x.inv.datetime ? new Date(x.inv.datetime) : new Date(), r[2],
             r[4], String(r[5]).toUpperCase(), PAID, r[1], r[6],
           ]);
@@ -398,7 +400,7 @@ function savePayment(p) {
   if (contractId && sheet.getRange(1, L_ID, sheet.getMaxRows(), 1).createTextFinder(contractId).matchEntireCell(true).findNext()) {
     return { status: 'duplicate' };
   }
-  sheet.appendRow([
+  appendLava(sheet, [
     new Date(), email, Number(p.amount) || p.amount || '', String(p.currency || '').toUpperCase(), PAID, '', contractId,
   ]);
   return { status: 'saved', email: email };
@@ -571,6 +573,106 @@ function writeLog(e, method, result) {
   } catch (err) {
     // журнал не должен мешать записи оплаты
   }
+}
+
+/**
+ * Дописать оплату на лист «Lava.top» в первую пустую строку таблицы оплат (A:G).
+ * appendRow не подходит: справа на листе стоит блок итогов, и строка ушла бы ниже него.
+ */
+function appendLava(sheet, row) {
+  const ids = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), LAVA_HEADER.length).getValues();
+  let last = 1;
+  ids.forEach(function (r, i) { if (r.some(function (v) { return v !== ''; })) last = i + 1; });
+  sheet.getRange(last + 1, 1, 1, row.length).setValues([row]);
+}
+
+
+// ---------------------------------------------------------------- итоги продаж на листе «Lava.top»
+
+const LAVA_FEE = 0.08;     // комиссия Lava с каждой продажи
+const TOTALS_COL = 9;      // I — блок итогов справа от таблицы оплат (через пустую колонку H)
+
+/**
+ * Блок итогов справа на листе «Lava.top»: сумма оплат по каждой валюте, перевод в рубли
+ * по текущему курсу Google Finance, общая сумма, комиссия Lava 8% и сумма к получению.
+ * Считается формулами — пересчитывается сам при каждой новой оплате.
+ */
+function setupTotals(silent) {
+  const sheet = lavaSheet();
+  const c = TOTALS_COL;
+  const range = sheet.getRange(1, c, 9, 4);
+  range.clear();
+
+  // В таблицах на русском аргументы формул разделяются «;» — проверяем, как считает эта таблица
+  const probe = sheet.getRange(1, c);
+  probe.setFormula('=SUM(1,2)');
+  SpreadsheetApp.flush();
+  const semi = probe.getValue() !== 3;
+  probe.clearContent();
+  const f = function (s) { return semi ? commasToSemicolons(s) : s; };
+
+  const paid = '"' + PAID + '"';
+  const sum = function (cur) { return f('=SUMIFS(C2:C, D2:D, "' + cur + '", E2:E, ' + paid + ')'); };
+  const rate = function (cur) { return f('=IFERROR(GOOGLEFINANCE("CURRENCY:' + cur + 'RUB"), 0)'); };
+  const L = function (r) { return 'L' + r; };
+
+  sheet.getRange(1, c, 9, 4).setValues([
+    ['Валюта', 'Сумма', 'Курс к ₽', 'В рублях'],
+    ['RUB', '', 1, ''],
+    ['USD', '', '', ''],
+    ['EUR', '', '', ''],
+    ['', '', '', ''],
+    ['Продаж, шт.', '', '', ''],
+    ['Итого, ₽', '', '', ''],
+    ['Комиссия Lava ' + Math.round(LAVA_FEE * 100) + '%', '', '', ''],
+    ['К получению, ₽', '', '', ''],
+  ]);
+  ['RUB', 'USD', 'EUR'].forEach(function (cur, i) {
+    const r = i + 2;
+    sheet.getRange(r, c + 1).setFormula(sum(cur));
+    if (cur !== 'RUB') sheet.getRange(r, c + 2).setFormula(rate(cur));
+    sheet.getRange(r, c + 3).setFormula(f('=ROUND(J' + r + '*K' + r + ', 2)'));
+  });
+  sheet.getRange(6, c + 3).setFormula(f('=COUNTIF(E2:E, ' + paid + ')'));
+  sheet.getRange(7, c + 3).setFormula('=SUM(L2:L4)');
+  // без десятичной точки: в русской таблице «0.08» не распознаётся как число
+  sheet.getRange(8, c + 3).setFormula(f('=-ROUND(L7*' + Math.round(LAVA_FEE * 100) + '/100, 2)'));
+  sheet.getRange(9, c + 3).setFormula('=L7+L8');
+
+  // Оформление: шапка как у таблицы, итоговая строка выделена
+  const dark = '#283854';
+  sheet.getRange(1, c, 1, 4).setBackground(dark).setFontColor('#ffffff').setFontWeight('bold')
+    .setHorizontalAlignment('center');
+  sheet.getRange(2, c, 3, 1).setFontWeight('bold');
+  sheet.getRange(2, c + 1, 3, 1).setNumberFormat('#,##0.00');
+  sheet.getRange(2, c + 2, 3, 1).setNumberFormat('#,##0.00');
+  sheet.getRange(2, c + 3, 3, 1).setNumberFormat('#,##0.00 ₽');
+  sheet.getRange(6, c + 3).setNumberFormat('0');
+  sheet.getRange(7, c + 3, 3, 1).setNumberFormat('#,##0.00 ₽');
+  sheet.getRange(6, c, 4, 1).setFontWeight('bold');
+  sheet.getRange(8, c, 1, 4).setFontColor('#991a1a');
+  sheet.getRange(9, c, 1, 4).setBackground('#b8e0c2').setFontColor('#115c29').setFontWeight('bold');
+  sheet.getRange(1, c, 9, 4).setBorder(true, true, true, true, null, null, '#c8ccd4', SpreadsheetApp.BorderStyle.SOLID);
+  sheet.setColumnWidth(c, 170);
+  sheet.setColumnWidths(c + 1, 3, 120);
+  sheet.setColumnWidth(c - 1, 24);
+
+  if (silent !== true) {
+    SpreadsheetApp.getUi().alert('Итоги продаж добавлены справа на листе «' + LAVA_SHEET + '» (колонки I–L).\n' +
+      'Доллары и евро переводятся в рубли по сегодняшнему курсу Google.');
+  }
+}
+
+/** Заменить запятые-разделители на «;», не трогая текст в кавычках. */
+function commasToSemicolons(formula) {
+  let out = '';
+  let inQuotes = false;
+  for (let i = 0; i < formula.length; i++) {
+    const ch = formula[i];
+    if (ch === '"') inQuotes = !inQuotes;
+    out += (ch === ',' && !inQuotes) ? ';' : ch;
+  }
+  return out;
 }
 
 function normEmail(v) {
