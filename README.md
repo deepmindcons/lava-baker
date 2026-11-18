@@ -50,21 +50,24 @@ https://script.google.com/macros/s/AKfycbwQQkjdvZejB8kAPMtp6ealfiYciTFmaAYALwJ3f
 ## Настройка
 
 1. Таблица → Расширения → Apps Script → вставить `bodycamp.gs`.
-2. Вверху скрипта вписать: `LAVA_API_KEY`, `PUZZLEBOT_TOKEN`, `COMMAND_NO_REC`, `COMMAND_REC`
-   и ID цен трёх тарифов в `TARIFFS` (их покажет меню «Lava» → «Показать продукты и цены Lava»).
+2. Вверху скрипта вписать `LAVA_API_KEY`, `PUZZLEBOT_TOKEN` (те же, что у Бейкера)
+   и названия команд бота `COMMAND_NO_REC` (2300) и `COMMAND_REC` (3300, 4300).
+   Ключ, токен и названия команд вписываются только в Apps Script — в GitHub их не храним.
+   ID цен уже вписаны (продукт Lava `ada2eaaa-a138-4b80-abaf-690d6449615f`).
 3. Развернуть как веб-приложение (запуск от моего имени, доступ — все), адрес `/exec`
    вписать в `SCRIPT_URL` в `docs/bodycamp/index.html`.
 4. Меню «Lava» → «1. Включить автопроверку».
 
 ## Ссылки для кнопок в боте
 
-`{{email_bodycamp}}` — переменная бота с почтой (заменить на настоящее название).
+У каждого тарифа своя переменная с почтой в боте.
 
 | Тариф | Ссылка |
 |---|---|
-| 2300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_bodycamp}}&offer=ID_ЦЕНЫ_2300` |
-| 3300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_bodycamp}}&offer=ID_ЦЕНЫ_3300` |
-| 4300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_bodycamp}}&offer=ID_ЦЕНЫ_4300` |
+| 2300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_camp2300}}&offer=1a49501b-ff80-40da-8841-de64f310d9b4` |
+| 3300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_camp3300}}&offer=5ba3f4cf-ebd4-428f-b31e-c4ef11acda4a` |
+| 4300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_camp4300}}&offer=111ca105-a35c-457a-a2d0-f2fa543f413e` |
 
-Проверка оплаты из бота (ответ `paid` / `unpaid`): `…/exec?api=check&email={{email_bodycamp}}&format=text`,
-а с `&offer=ID_ЦЕНЫ` — проверка оплаты именно этого тарифа.
+Проверка оплаты из бота (ответ `paid` / `unpaid`), например для 2300:
+`…/exec?api=check&email={{email_camp2300}}&offer=1a49501b-ff80-40da-8841-de64f310d9b4&format=text`
+(без `&offer=…` — проверка оплаты любого тарифа).

@@ -31,7 +31,8 @@ const PAID_URL = '';
 //    Токен: PuzzleBot → Бот → Настройки → Интеграции → Входящие запросы → «Сгенерировать API токен».
 //    Не публикуйте токен (в GitHub он не должен попасть). Пока здесь заглушка — автовыдача выключена.
 const PUZZLEBOT_TOKEN = 'ВСТАВЬТЕ_СЮДА_API_ТОКЕН_PUZZLEBOT';
-//    Точные названия команд в PuzzleBot, которые выдают доступ:
+//    Точные названия команд в PuzzleBot, которые выдают доступ. Вписывайте только в Apps Script,
+//    в GitHub названия команд не храним.
 const COMMAND_NO_REC = 'ВСТАВЬТЕ_КОМАНДУ_БЕЗ_ЗАПИСЕЙ';   // для тарифа 2300
 const COMMAND_REC = 'ВСТАВЬТЕ_КОМАНДУ_С_ЗАПИСЯМИ';       // для тарифов 3300 и 4300
 
@@ -39,9 +40,9 @@ const COMMAND_REC = 'ВСТАВЬТЕ_КОМАНДУ_С_ЗАПИСЯМИ';      
 //    sheet — лист регистраций этого тарифа, command — какую команду бота запустить после оплаты.
 //    Первый тариф — цена по умолчанию, если в ссылке не указан offer.
 const TARIFFS = [
-  { name: '2300', offer: 'ВСТАВЬТЕ_ID_ЦЕНЫ_2300', sheet: 'Без записей 2300', command: COMMAND_NO_REC },
-  { name: '3300', offer: 'ВСТАВЬТЕ_ID_ЦЕНЫ_3300', sheet: 'С записями 3300', command: COMMAND_REC },
-  { name: '4300', offer: 'ВСТАВЬТЕ_ID_ЦЕНЫ_4300', sheet: 'С записями 4300', command: COMMAND_REC },
+  { name: '2300', offer: '1a49501b-ff80-40da-8841-de64f310d9b4', sheet: 'Без записей 2300', command: COMMAND_NO_REC },
+  { name: '3300', offer: '5ba3f4cf-ebd4-428f-b31e-c4ef11acda4a', sheet: 'С записями 3300', command: COMMAND_REC },
+  { name: '4300', offer: '111ca105-a35c-457a-a2d0-f2fa543f413e', sheet: 'С записями 4300', command: COMMAND_REC },
 ];
 const DEFAULT_OFFER_ID = TARIFFS[0].offer;
 
