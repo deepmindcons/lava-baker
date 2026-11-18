@@ -69,5 +69,5 @@ https://script.google.com/macros/s/AKfycbwQQkjdvZejB8kAPMtp6ealfiYciTFmaAYALwJ3f
 | 4300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_camp4300}}&offer=111ca105-a35c-457a-a2d0-f2fa543f413e` |
 
 Проверка оплаты из бота (ответ `paid` / `unpaid`), например для 2300:
-`…/exec?api=check&email={{email_camp2300}}&offer=1a49501b-ff80-40da-8841-de64f310d9b4&format=text`
+`https://script.google.com/macros/s/AKfycby5bCIbi2CQ4u0z3oeZu0v41c6DdKlhLL_v5SAQE3gINap9evvCjxEX-icPbGEl61jZ/exec?api=check&email={{email_camp2300}}&offer=1a49501b-ff80-40da-8841-de64f310d9b4&format=text`
 (без `&offer=…` — проверка оплаты любого тарифа).
