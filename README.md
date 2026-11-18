@@ -30,3 +30,41 @@ https://script.google.com/macros/s/AKfycbwQQkjdvZejB8kAPMtp6ealfiYciTFmaAYALwJ3f
 - API-ключ Lava хранится **только** в Apps Script, в этом репозитории его нет и быть не должно.
 - После правок `lava-baker.gs` вставьте код в Apps Script и выпустите новую версию развёртывания
   (Развертывание → Управление развертываниями → карандаш → Новая версия), чтобы адрес `/exec` не поменялся.
+
+---
+
+# Lava.top + PuzzleBot — Deep Body Camp
+
+Отдельный скрипт `bodycamp.gs` и отдельная страница оплаты `docs/bodycamp/index.html`
+(https://deepmindcons.github.io/lava-baker/bodycamp/). Таблица — «deep body camp регистрации».
+Версия для Яна Бейкера (`lava-baker.gs`, `docs/index.html`) не изменилась.
+
+Отличия от Бейкера:
+
+- 3 тарифа, у каждого свой лист регистраций: «Без записей 2300», «С записями 3300», «С записями 4300».
+- После оплаты бот получает разные команды: 2300 → `COMMAND_NO_REC`, 3300 и 4300 → `COMMAND_REC`.
+- На листе «Lava.top» добавлен столбец «Тариф».
+- В столбце E «Оплата» на листе тарифа: «Успешно» — оплачен этот тариф,
+  «Оплачен другой тариф: 3300» — оплатил, но другой, «Нет оплаты» — оплат нет.
+
+## Настройка
+
+1. Таблица → Расширения → Apps Script → вставить `bodycamp.gs`.
+2. Вверху скрипта вписать: `LAVA_API_KEY`, `PUZZLEBOT_TOKEN`, `COMMAND_NO_REC`, `COMMAND_REC`
+   и ID цен трёх тарифов в `TARIFFS` (их покажет меню «Lava» → «Показать продукты и цены Lava»).
+3. Развернуть как веб-приложение (запуск от моего имени, доступ — все), адрес `/exec`
+   вписать в `SCRIPT_URL` в `docs/bodycamp/index.html`.
+4. Меню «Lava» → «1. Включить автопроверку».
+
+## Ссылки для кнопок в боте
+
+`{{email_bodycamp}}` — переменная бота с почтой (заменить на настоящее название).
+
+| Тариф | Ссылка |
+|---|---|
+| 2300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_bodycamp}}&offer=ID_ЦЕНЫ_2300` |
+| 3300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_bodycamp}}&offer=ID_ЦЕНЫ_3300` |
+| 4300 ₽ | `https://deepmindcons.github.io/lava-baker/bodycamp/?uid={{USERNAME_TEXT}}&tid={{USER_ID_TEXT}}&email={{email_bodycamp}}&offer=ID_ЦЕНЫ_4300` |
+
+Проверка оплаты из бота (ответ `paid` / `unpaid`): `…/exec?api=check&email={{email_bodycamp}}&format=text`,
+а с `&offer=ID_ЦЕНЫ` — проверка оплаты именно этого тарифа.
