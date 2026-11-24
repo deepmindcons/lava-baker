@@ -73,7 +73,7 @@ var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwQQkjdvZejB8kAPMtp6ea
 var BOT_URL = 'https://t.me/deepmindco_bot';
 // Ссылка на команду бота, которая проверяет оплату и выдаёт доступ
 var PAID_URL = 'https://t.me/deepmindco_bot?start=link_RG6MJ6vWOv';
-// Цена по умолчанию: пусто — берётся DEFAULT_OFFER_ID из скрипта
+// Цена по умолчанию: пусто — берётся первый тариф из скрипта
 var DEFAULT_OFFER = '';
 // ============================================
 
@@ -103,7 +103,7 @@ if (!validEmail) {
 } else if (q.get('done')) {
   showDone();
 } else {
-  showForm(q.get('failed') ? 'Оплата не прошла. Попробуйте ещё раз или выберите другую валюту.' : '');
+  showForm(q.get('failed') ? 'Оплата не прошла. Попробуйте ещё раз, используя другую карту или другую валюту.' : '');
 }
 
 // ---------- после оплаты: отмечаем оплату в таблице и возвращаем в бот
@@ -119,16 +119,31 @@ function showForm(error) {
   $('pay').hidden = false;
   $('mail').textContent = 'Почта: ' + email;
   setError(error);
+  // Суммы берём только свежие из Lava. Сохранённые в браузере суммы — запасной вариант,
+  // если Lava не ответила (иначе после смены цен мелькали бы старые суммы).
   var cached = store('prices_' + offer);
-  if (cached) { try { renderPrices(JSON.parse(cached)); } catch (e) {} }
+  // Кнопки валют показываем сразу (без сумм), чтобы можно было выбрать валюту, не дожидаясь Lava
+  (function () {
+    var list = null;
+    if (cached) { try { list = JSON.parse(cached); } catch (e) {} }
+    list = list && list.length ? list : [{ currency: 'RUB' }, { currency: 'USD' }, { currency: 'EUR' }];
+    renderPrices(list.map(function (p) { return { currency: p.currency }; }));
+  })();
+  function fallback() {
+    var list = null;
+    if (cached) { try { list = JSON.parse(cached); } catch (e) {} }
+    renderPrices(list && list.length ? list : [{ currency: 'RUB' }]);
+  }
   api({ api: 'prices', offer: offer }).then(function (d) {
-    if (d && d.ok && d.prices && d.prices.length) {
+    var withSums = d && d.ok && d.prices && d.prices.length &&
+      d.prices.every(function (p) { return p.amount != null && p.amount !== ''; });
+    if (withSums) {
       store('prices_' + offer, JSON.stringify(d.prices));
       renderPrices(d.prices);
-    } else if (!cached) {
-      renderPrices([{ currency: 'RUB' }]);
+    } else {
+      fallback();
     }
-  }, function () { if (!cached) renderPrices([{ currency: 'RUB' }]); });
+  }, fallback);
 
   $('pay').addEventListener('submit', function (ev) {
     ev.preventDefault();
